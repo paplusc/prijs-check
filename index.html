@@ -123,7 +123,7 @@
             <div class="flex justify-between items-center">
                 <p class="text-sm font-medium text-gray-500 uppercase tracking-wider">Search or Scan</p>
                 <button id="toggle-scanner" class="bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg hover:bg-blue-600 transition">
-                    📸 OPEN SCANNER
+                    SCAN BARCODE
                 </button>
             </div>
 
@@ -135,7 +135,7 @@
 
             <div class="relative">
                 <input type="text" id="search-input" 
-                    placeholder="e.g. 'coca cola 1.5l' or scan..." 
+                    placeholder="e.g. 'coca cola 1.5 l'..." 
                     class="w-full px-5 py-4 bg-white/50 border-none rounded-2xl search-input text-lg outline-none"
                     disabled>
                 <div id="search-loader" class="hidden absolute right-4 top-4">
@@ -167,14 +167,6 @@
             <div class="text-center py-10 text-gray-400 italic" id="empty-state">
                 Connecting to supermarket prices...
             </div>
-        </div>
-
-        <!-- Debug Console -->
-        <div class="rounded-xl overflow-hidden border border-black/10 opacity-50">
-            <button onclick="document.getElementById('debug-console').classList.toggle('hidden')" class="w-full bg-gray-800 text-white text-[10px] py-1 px-4 text-left">
-                SYSTEM LOGS (DEBUG)
-            </button>
-            <div id="debug-console" class="p-3 hidden bg-black text-green-400 font-mono text-[10px] max-h-48 overflow-y-auto"></div>
         </div>
     </main>
 
@@ -219,7 +211,6 @@
             count: document.getElementById('results-count'),
             loader: document.getElementById('search-loader'),
             status: document.getElementById('status-dot'),
-            debug: document.getElementById('debug-console'),
             barcodeInfo: document.getElementById('barcode-info'),
             barcodeName: document.getElementById('barcode-product-name'),
             scannerCont: document.getElementById('scanner-container'),
@@ -233,8 +224,6 @@
             div.textContent = `[${time}] ${msg}`;
             if(type === 'error') div.style.color = 'red';
             if(type === 'api') div.style.color = '#38bdf8';
-            ui.debug.appendChild(div);
-            ui.debug.scrollTop = ui.debug.scrollHeight;
         }
 
         async function init() {
@@ -291,7 +280,7 @@
             ui.search.disabled = false;
             ui.status.classList.replace('bg-red-500', 'bg-green-500');
             ui.count.textContent = `${allData.length.toLocaleString()} products found.`;
-            ui.empty.textContent = "Type or Scan to compare prices.";
+            ui.empty.textContent = "Search by name or by Barcode... (You can also type the barcode manually)";
         }
 
         async function fetchProductNameByBarcode(barcode) {
@@ -346,7 +335,7 @@
             if (scannerIsRunning) {
                 Quagga.stop();
                 ui.scannerCont.classList.add('hidden');
-                ui.toggleBtn.textContent = "📸 OPEN SCANNER";
+                ui.toggleBtn.textContent = "SCAN BARCODE";
                 ui.toggleBtn.classList.replace('bg-red-500', 'bg-blue-500');
             } else {
                 startScanner();
@@ -356,7 +345,7 @@
 
         function startScanner() {
             ui.scannerCont.classList.remove('hidden');
-            ui.toggleBtn.textContent = "🛑 STOP SCANNER";
+            ui.toggleBtn.textContent = "STOP SCANNER";
             ui.toggleBtn.classList.replace('bg-blue-500', 'bg-red-500');
 
             Quagga.init({
@@ -376,7 +365,7 @@
                 const code = data.codeResult.code;
                 Quagga.stop();
                 ui.scannerCont.classList.add('hidden');
-                ui.toggleBtn.textContent = "📸 OPEN SCANNER";
+                ui.toggleBtn.textContent = "SCAN BARCODE";
                 ui.toggleBtn.classList.replace('bg-red-500', 'bg-blue-500');
                 scannerIsRunning = false;
                 fetchProductNameByBarcode(code);
