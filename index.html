@@ -39,18 +39,14 @@
             z-index: 50;
         }
 
-        .search-input {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
         .loader {
             border-top-color: var(--apple-blue);
             animation: spinner 0.8s linear infinite;
         }
-
+        
         @keyframes spinner {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
         }
 
         .store-badge {
@@ -63,7 +59,23 @@
             display: inline-block;
         }
 
-        /* Scanner Overlay */
+        .filter-pill {
+            transition: all 0.2s ease;
+            cursor: pointer;
+            user-select: none;
+            white-space: nowrap;
+        }
+        .filter-pill.active {
+            transform: scale(1.02);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+        }
+        .filter-pill.inactive {
+            opacity: 0.4;
+            filter: grayscale(1);
+            background-color: #e5e7eb !important;
+            color: #6b7280 !important;
+        }
+
         #interactive.viewport {
             width: 100%;
             height: 250px;
@@ -78,7 +90,6 @@
             object-fit: cover;
         }
 
-        /* Table Specifics */
         .results-table {
             width: 100%;
             border-collapse: separate;
@@ -95,31 +106,51 @@
             background: rgba(255, 255, 255, 0.5);
             backdrop-filter: blur(8px);
             border-radius: 12px;
-            transition: transform 0.2s;
-        }
-        .row-glass:active {
-            transform: scale(0.98);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .row-glass td {
             padding: 12px;
         }
         .row-glass td:first-child { border-radius: 12px 0 0 12px; }
         .row-glass td:last-child { border-radius: 0 12px 12px 0; text-align: right; }
+
+        .hide-btn {
+            opacity: 1;
+            transition: opacity 0.2s, transform 0.2s;
+        }
+        
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+        .filter-scroll-wrapper {
+            position: relative;
+            padding: 0.25rem 0;
+        }
+        
+        .filter-container-shared {
+            cursor: grab;
+        }
+        .filter-container-shared:active {
+            cursor: grabbing;
+        }
+
+        /* View Transitions */
+        .view-hidden { display: none !important; }
     </style>
 </head>
 <body class="pb-10">
 
-    <header class="header-glass px-6 py-4 mb-6">
+    <header class="header-glass px-6 py-4 mb-4">
         <div class="max-w-md mx-auto flex justify-between items-center">
             <h1 class="text-2xl font-bold tracking-tight text-gray-900">PrijsCheck</h1>
             <div id="status-dot" class="w-3 h-3 rounded-full bg-red-500 shadow-sm"></div>
         </div>
     </header>
 
-    <main class="max-w-md mx-auto px-4 space-y-4">
+    <!-- MAIN SEARCH VIEW -->
+    <main id="main-view" class="max-w-md mx-auto px-4 space-y-4">
         
-        <!-- Search & Scanner UI -->
-        <div class="liquid-glass p-6 space-y-4">
+        <div class="liquid-glass p-6 space-y-4 overflow-hidden">
             <div class="flex justify-between items-center">
                 <p class="text-sm font-medium text-gray-500 uppercase tracking-wider">Search or Scan</p>
                 <button id="toggle-scanner" class="bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg hover:bg-blue-600 transition">
@@ -127,7 +158,6 @@
                 </button>
             </div>
 
-            <!-- Live Scanner View -->
             <div id="scanner-container" class="hidden animate-in fade-in duration-300">
                 <div id="interactive" class="viewport"></div>
                 <p class="text-[10px] text-center text-gray-500 mt-2">Center the barcode in the view</p>
@@ -135,8 +165,8 @@
 
             <div class="relative">
                 <input type="text" id="search-input" 
-                    placeholder="e.g. 'coca cola 1.5 l' or scan..." 
-                    class="w-full px-5 py-4 bg-white/50 border-none rounded-2xl search-input text-lg outline-none"
+                    placeholder="e.g. 'coca cola 1.5l' or scan..." 
+                    class="w-full px-5 py-4 bg-white/50 border-none rounded-2xl search-input text-lg outline-none focus:ring-2 focus:ring-blue-400"
                     disabled>
                 <div id="search-loader" class="hidden absolute right-4 top-4">
                     <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-6 w-6"></div>
@@ -148,24 +178,82 @@
                 <p id="barcode-product-name" class="text-sm font-semibold text-gray-800">Searching...</p>
             </div>
 
-            <div id="results-count" class="text-xs text-gray-400 px-1 italic">Initializing...</div>
+            <div class="flex justify-between items-center px-1">
+                <div id="results-count" class="text-xs text-gray-400 italic">Initializing...</div>
+                <button id="show-hidden-view-btn" class="hidden text-[10px] font-bold text-gray-500 hover:text-blue-600 uppercase bg-gray-100 px-2 py-0.5 rounded border border-gray-200 transition">
+                    Manage Hidden
+                </button>
+            </div>
         </div>
 
-        <!-- Results Table -->
+        <div class="filter-scroll-wrapper">
+            <div id="filter-container-main" class="filter-container-shared flex gap-2 overflow-x-auto no-scrollbar px-6 py-1 snap-x select-none">
+                <!-- Pills injected here -->
+            </div>
+        </div>
+
         <div id="results-wrapper">
             <table class="results-table">
                 <thead>
                     <tr>
                         <th>Product & Store</th>
-                        <th>Price</th>
+                        <th class="text-right">Price</th>
                     </tr>
                 </thead>
                 <tbody id="results-container">
                     <!-- Rows will be injected here -->
                 </tbody>
             </table>
+            
+            <div id="load-more-trigger" class="h-10 w-full flex items-center justify-center">
+                <div id="scroll-loader" class="loader hidden ease-linear rounded-full border-2 border-t-2 border-gray-200 h-5 w-5"></div>
+            </div>
+
             <div class="text-center py-10 text-gray-400 italic" id="empty-state">
                 Connecting to supermarket prices...
+            </div>
+        </div>
+    </main>
+
+    <!-- HIDDEN ITEMS VIEW -->
+    <main id="hidden-view" class="max-w-md mx-auto px-4 space-y-4 view-hidden">
+        <div class="flex items-center justify-between mb-4">
+            <button id="back-to-search" class="flex items-center gap-2 text-blue-600 font-bold text-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clip-rule="evenodd" />
+                </svg>
+                Back to Search
+            </button>
+            <h2 class="text-lg font-bold">Hidden Items</h2>
+        </div>
+
+        <div class="liquid-glass p-6 space-y-4 overflow-hidden">
+            <div class="relative">
+                <input type="text" id="hidden-search-input" 
+                    placeholder="Search in hidden items..." 
+                    class="w-full px-5 py-4 bg-white/50 border-none rounded-2xl text-lg outline-none focus:ring-2 focus:ring-blue-400">
+            </div>
+            
+            <button id="clear-all-hidden" class="w-full py-2 bg-red-50 text-red-600 border border-red-100 rounded-xl text-xs font-bold uppercase hover:bg-red-100 transition">
+                Unhide All Products
+            </button>
+        </div>
+
+        <div class="filter-scroll-wrapper">
+            <div id="filter-container-hidden" class="filter-container-shared flex gap-2 overflow-x-auto no-scrollbar px-6 py-1 snap-x select-none">
+                <!-- Independent Pills injected here -->
+            </div>
+        </div>
+
+        <div class="liquid-glass p-6">
+            <table class="results-table">
+                <tbody id="hidden-items-container">
+                    <!-- Hidden rows injected here -->
+                </tbody>
+            </table>
+
+            <div id="hidden-empty-state" class="text-center py-10 text-gray-400 italic hidden">
+                No hidden products match your search.
             </div>
         </div>
     </main>
@@ -173,41 +261,42 @@
     <script>
         const DATA_URL = 'https://raw.githubusercontent.com/supermarkt/checkjebon/refs/heads/main/data/supermarkets.json';
         const OFF_API_URL = 'https://world.openfoodfacts.org/api/v0/product/';
+        const STORAGE_KEY_HIDDEN = 'prijscheck_hidden_items';
+        const STORAGE_KEY_MAIN_FILTERS = 'prijscheck_main_filters';
+        const STORAGE_KEY_HIDDEN_FILTERS = 'prijscheck_hidden_filters';
 
         const STORE_MAP = {
             'ah': { name: 'Albert Heijn', bg: '#00adef', text: '#ffffff', priority: 1 },
-            '0': { name: 'Albert Heijn', bg: '#00adef', text: '#ffffff', priority: 1 },
-            '1': { name: 'Albert Heijn', bg: '#00adef', text: '#ffffff', priority: 1 },
             'jumbo': { name: 'Jumbo', bg: '#eeb717', text: '#000000', priority: 1 },
-            '2': { name: 'Jumbo', bg: '#eeb717', text: '#000000', priority: 1 },
-            'plus': { name: 'Plus', bg: '#48ab2b', text: '#ffffff', priority: 2 },
-            '3': { name: 'Plus', bg: '#48ab2b', text: '#ffffff', priority: 2 },
-            'dirk': { name: 'Dirk', bg: '#e30613', text: '#ffffff', priority: 2 },
-            '4': { name: 'Dirk', bg: '#e30613', text: '#ffffff', priority: 2 },
-            'aldi': { name: 'Aldi', bg: '#002e6d', text: '#ffffff', priority: 2 },
-            '5': { name: 'Aldi', bg: '#002e6d', text: '#ffffff', priority: 2 },
-            'lidl': { name: 'Lidl', bg: '#0050aa', text: '#ffffff', priority: 2 },
-            '6': { name: 'Lidl', bg: '#0050aa', text: '#ffffff', priority: 2 },
             'spar': { name: 'Spar', bg: '#007a33', text: '#ffffff', priority: 1 },
-            '7': { name: 'Spar', bg: '#007a33', text: '#ffffff', priority: 1 },
-            'coop': { name: 'Coop', bg: '#ee7b00', text: '#ffffff', priority: 2 },
-            '8': { name: 'Coop', bg: '#ee7b00', text: '#ffffff', priority: 2 },
-            'hoogvliet': { name: 'Hoogvliet', bg: '#005da8', text: '#ffffff', priority: 2 },
-            '9': { name: 'Hoogvliet', bg: '#005da8', text: '#ffffff', priority: 2 },
-            'picnic': { name: 'Picnic', bg: '#e30613', text: '#ffffff', priority: 1 },
-            '10': { name: 'Picnic', bg: '#e30613', text: '#ffffff', priority: 1 },
-            'dekamarkt': { name: 'Dekamarkt', bg: '#cf112d', text: '#ffffff', priority: 2 },
-            '11': { name: 'Dekamarkt', bg: '#cf112d', text: '#ffffff', priority: 2 },
-            'vomar': { name: 'Vomar', bg: '#e30613', text: '#ffffff', priority: 2 },
-            '12': { name: 'Vomar', bg: '#e30613', text: '#ffffff', priority: 2 }
+            'aldi': { name: 'Aldi', bg: '#002e6d', text: '#ffffff', priority: 2 },
+            'lidl': { name: 'Lidl', bg: '#0050aa', text: '#ffffff', priority: 2 },
+            'plus': { name: 'Plus', bg: '#48ab2b', text: '#ffffff', priority: 3 },
+            'dirk': { name: 'Dirk', bg: '#e30613', text: '#ffffff', priority: 3 },
+            'hoogvliet': { name: 'Hoogvliet', bg: '#005da8', text: '#ffffff', priority: 3 },
+            'dekamarkt': { name: 'Dekamarkt', bg: '#cf112d', text: '#ffffff', priority: 3 },
+            'vomar': { name: 'Vomar', bg: '#e30613', text: '#ffffff', priority: 3 }
         };
 
         let allData = [];
+        let currentMatches = [];
+        let displayedCount = 0;
+        
+        // Split filters into two sets
+        let activeMainFilters = new Set(Object.keys(STORE_MAP));
+        let activeHiddenFilters = new Set(Object.keys(STORE_MAP));
+        
+        let hiddenProductIds = new Set();
+        const PAGE_SIZE = 20;
         let scannerIsRunning = false;
 
         const ui = {
+            mainView: document.getElementById('main-view'),
+            hiddenView: document.getElementById('hidden-view'),
             search: document.getElementById('search-input'),
+            hiddenSearch: document.getElementById('hidden-search-input'),
             results: document.getElementById('results-container'),
+            hiddenResults: document.getElementById('hidden-items-container'),
             count: document.getElementById('results-count'),
             loader: document.getElementById('search-loader'),
             status: document.getElementById('status-dot'),
@@ -215,65 +304,195 @@
             barcodeName: document.getElementById('barcode-product-name'),
             scannerCont: document.getElementById('scanner-container'),
             toggleBtn: document.getElementById('toggle-scanner'),
-            empty: document.getElementById('empty-state')
+            empty: document.getElementById('empty-state'),
+            hiddenEmpty: document.getElementById('hidden-empty-state'),
+            trigger: document.getElementById('load-more-trigger'),
+            scrollLoader: document.getElementById('scroll-loader'),
+            filtersMain: document.getElementById('filter-container-main'),
+            filtersHidden: document.getElementById('filter-container-hidden'),
+            showHiddenBtn: document.getElementById('show-hidden-view-btn'),
+            backToSearch: document.getElementById('back-to-search'),
+            clearAllHidden: document.getElementById('clear-all-hidden')
         };
 
-        function log(msg, type = 'info') {
-            const time = new Date().toLocaleTimeString().split(' ')[0];
-            const div = document.createElement('div');
-            div.textContent = `[${time}] ${msg}`;
-            if(type === 'error') div.style.color = 'red';
-            if(type === 'api') div.style.color = '#38bdf8';
-        }
-
         async function init() {
-            log('Fetching supermarket data...');
+            // Load persistent data
+            const savedHidden = localStorage.getItem(STORAGE_KEY_HIDDEN);
+            if (savedHidden) {
+                try {
+                    hiddenProductIds = new Set(JSON.parse(savedHidden));
+                    updateHiddenButtonVisibility();
+                } catch (e) { console.error(e); }
+            }
+
+            const savedMainFilters = localStorage.getItem(STORAGE_KEY_MAIN_FILTERS);
+            if (savedMainFilters) {
+                try { activeMainFilters = new Set(JSON.parse(savedMainFilters)); } catch (e) {}
+            }
+
+            const savedHiddenFilters = localStorage.getItem(STORAGE_KEY_HIDDEN_FILTERS);
+            if (savedHiddenFilters) {
+                try { activeHiddenFilters = new Set(JSON.parse(savedHiddenFilters)); } catch (e) {}
+            }
+
+            renderAllFilters();
+            setupDragScroll(ui.filtersMain);
+            setupDragScroll(ui.filtersHidden);
+            
             try {
                 const res = await fetch(DATA_URL);
                 if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
                 processData(data);
+                setupInfiniteScroll();
             } catch (err) {
-                log('Price DB Load Failed: ' + err.message, 'error');
                 ui.count.textContent = "Error Loading Database";
             }
         }
 
-        function processData(data) {
-            log('Scanning nested JSON categories...');
-            const temp = [];
+        function updateHiddenButtonVisibility() {
+            ui.showHiddenBtn.classList.toggle('hidden', hiddenProductIds.size === 0);
+        }
+
+        function setupDragScroll(slider) {
+            let isDown = false;
+            let startX, scrollLeft, hasDragged;
+
+            slider.addEventListener('mousedown', (e) => {
+                isDown = true;
+                hasDragged = false;
+                startX = e.pageX - slider.offsetLeft;
+                scrollLeft = slider.scrollLeft;
+            });
+            slider.addEventListener('mouseleave', () => isDown = false);
+            slider.addEventListener('mouseup', () => isDown = false);
+            slider.addEventListener('mousemove', (e) => {
+                if (!isDown) return;
+                e.preventDefault();
+                const x = e.pageX - slider.offsetLeft;
+                const walk = (x - startX) * 2;
+                if (Math.abs(walk) > 5) hasDragged = true;
+                slider.scrollLeft = scrollLeft - walk;
+            });
+            slider.addEventListener('click', (e) => {
+                if (hasDragged) {
+                    e.stopImmediatePropagation();
+                    e.preventDefault();
+                }
+            }, true);
+        }
+
+        function renderAllFilters() {
+            // Render main filters
+            ui.filtersMain.innerHTML = Object.entries(STORE_MAP).map(([id, store]) => {
+                const isActive = activeMainFilters.has(id);
+                return `
+                <div onclick="toggleFilter('${id}', 'main')" data-main-store-id="${id}"
+                    class="filter-pill ${isActive ? 'active' : 'inactive'} px-4 py-2 rounded-full text-[10px] font-bold uppercase transition-all flex-shrink-0 snap-start"
+                    style="${isActive ? `background-color: ${store.bg}; color: ${store.text};` : ''}">
+                    ${store.name}
+                </div>`;
+            }).join('');
+
+            // Render hidden filters
+            ui.filtersHidden.innerHTML = Object.entries(STORE_MAP).map(([id, store]) => {
+                const isActive = activeHiddenFilters.has(id);
+                return `
+                <div onclick="toggleFilter('${id}', 'hidden')" data-hidden-store-id="${id}"
+                    class="filter-pill ${isActive ? 'active' : 'inactive'} px-4 py-2 rounded-full text-[10px] font-bold uppercase transition-all flex-shrink-0 snap-start"
+                    style="${isActive ? `background-color: ${store.bg}; color: ${store.text};` : ''}">
+                    ${store.name}
+                </div>`;
+            }).join('');
+        }
+
+        function toggleFilter(id, view) {
+            const store = STORE_MAP[id];
+            const isMain = view === 'main';
+            const filterSet = isMain ? activeMainFilters : activeHiddenFilters;
+            const storageKey = isMain ? STORAGE_KEY_MAIN_FILTERS : STORAGE_KEY_HIDDEN_FILTERS;
+            const dataAttr = isMain ? `data-main-store-id="${id}"` : `data-hidden-store-id="${id}"`;
             
-            function crawl(obj, storeKey) {
-                if (Array.isArray(obj)) {
-                    obj.forEach(p => {
-                        if (p.n || p.name) {
-                            const name = p.n || p.name;
-                            const brand = p.b || p.brand || "";
-                            const size = p.s || p.q || p.unit || p.size || "";
-                            const searchBlob = `${name} ${brand} ${size}`.toLowerCase();
-
-                            temp.push({
-                                n: name,
-                                p: parseFloat(p.p || p.price || 0),
-                                sk: storeKey.toString().toLowerCase(),
-                                u: p.u || p.url || "",
-                                b: brand,
-                                q: size,
-                                sb: searchBlob
-                            });
-                        }
-                    });
-                    return;
-                }
-                if (obj !== null && typeof obj === 'object') {
-                    for (const key in obj) {
-                        crawl(obj[key], storeKey);
-                    }
-                }
+            if (filterSet.has(id)) {
+                filterSet.delete(id);
+            } else {
+                filterSet.add(id);
             }
+            
+            localStorage.setItem(storageKey, JSON.stringify(Array.from(filterSet)));
+            
+            // Update UI for this view only
+            const pill = document.querySelector(`[${dataAttr}]`);
+            if (pill) {
+                const isActive = filterSet.has(id);
+                pill.className = `filter-pill ${isActive ? 'active' : 'inactive'} px-4 py-2 rounded-full text-[10px] font-bold uppercase transition-all flex-shrink-0 snap-start`;
+                pill.style.backgroundColor = isActive ? store.bg : '';
+                pill.style.color = isActive ? store.text : '';
+            }
+            
+            if (isMain) {
+                performSearch(ui.search.value);
+            } else {
+                renderHiddenItems();
+            }
+        }
 
-            for (const key in data) {
-                crawl(data[key], key);
+        function setupInfiniteScroll() {
+            const observer = new IntersectionObserver((entries) => {
+                if (entries[0].isIntersecting && displayedCount < currentMatches.length) {
+                    loadMoreResults();
+                }
+            }, { threshold: 0.1 });
+            observer.observe(ui.trigger);
+        }
+
+        function generateId(raw) {
+            let hash = 0;
+            for (let i = 0; i < raw.length; i++) {
+                const char = raw.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            return Math.abs(hash).toString(36);
+        }
+
+        function processData(data) {
+            const temp = [];
+            for (const categoryKey in data) {
+                const category = data[categoryKey];
+                const storeCode = (category.c || "").toLowerCase();
+                const baseUrl = category.u || "";
+                
+                let products = [];
+                if (Array.isArray(category)) {
+                    products = category;
+                } else {
+                    const arrayKey = Object.keys(category).find(k => Array.isArray(category[k]));
+                    if (arrayKey) products = category[arrayKey];
+                }
+
+                products.forEach(p => {
+                    if (p.n) {
+                        const name = p.n;
+                        const price = parseFloat(p.p || 0);
+                        const size = p.s || "";
+                        const link = p.l ? (baseUrl + p.l) : "";
+                        const brand = p.b || "";
+                        const searchBlob = `${name} ${brand} ${size}`.toLowerCase();
+                        const uid = generateId(`${storeCode}-${name}-${price}-${size}`);
+
+                        temp.push({
+                            id: uid,
+                            n: name,
+                            p: price,
+                            sk: storeCode,
+                            u: link,
+                            b: brand,
+                            q: size,
+                            sb: searchBlob
+                        });
+                    }
+                });
             }
 
             allData = temp;
@@ -283,68 +502,177 @@
             ui.empty.textContent = "Type or Scan to compare prices.";
         }
 
-        async function fetchProductNameByBarcode(barcode) {
-            log(`API REQUEST: ${barcode}`, 'api');
-            ui.loader.classList.remove('hidden');
-            ui.barcodeInfo.classList.remove('hidden');
-            ui.barcodeName.textContent = "Querying Open Food Facts...";
-
-            try {
-                const res = await fetch(`${OFF_API_URL}${barcode}.json`);
-                const json = await res.json();
-                
-                // LOG RAW RESPONSE FOR DEBUGGING
-                console.log("OFF API Response:", json);
-                log(`API RAW: ${JSON.stringify(json.product?.product_name || "No Name Found").substring(0, 50)}...`, 'api');
-
-                if (json.status === 1) {
-                    const p = json.product;
-                    
-                    // 1. Clean up "Unknown", "null", or missing values
-                    const isInvalid = (str) => !str || /^(unknown|null|undefined|none|n\/a)$/i.test(str.toString().trim());
-                    
-                    const rawProdName = isInvalid(p.product_name) ? (p.generic_name || "") : p.product_name;
-                    const rawBrand = (p.brands || "").split(',')[0].trim();
-                    const rawQuantity = p.quantity || "";
-
-                    // 2. Format Quantity: Insert spaces between numbers, operators (x, *), and units
-                    // e.g., "6x1.5l" -> "6 x 1.5 l"
-                    let cleanQuantity = rawQuantity
-                        .replace(/(\d+)([a-zA-Z]+)/g, '$1 $2') // number -> unit
-                        .replace(/([a-zA-Z]+)(\d+)/g, '$1 $2') // unit -> number
-                        .replace(/(\d+)([xX*])(\d+)/g, '$1 $2 $3') // number -> x -> number
-                        .replace(/\s+/g, ' ')
-                        .trim();
-                    
-                    if (isInvalid(cleanQuantity)) cleanQuantity = "";
-
-                    // 3. Build string and Remove Duplicate Words (Case Insensitive)
-                    const fullString = `${isInvalid(rawBrand) ? "" : rawBrand} ${rawProdName} ${cleanQuantity}`.trim();
-                    const words = fullString.split(/\s+/).filter(w => !isInvalid(w));
-                    
-                    const seen = new Set();
-                    const finalQuery = words.filter(word => {
-                        const low = word.toLowerCase();
-                        if (seen.has(low)) return false;
-                        seen.add(low);
-                        return true;
-                    }).join(' ');
-                    
-                    log(`API SEARCH QUERY: ${finalQuery}`, 'api');
-                    ui.barcodeName.textContent = finalQuery;
-                    ui.search.value = finalQuery;
-                    performSearch(finalQuery);
-                } else {
-                    ui.barcodeName.textContent = "Barcode not in global database.";
-                }
-            } catch (err) {
-                log(`API Error: ${err.message}`, 'error');
-                ui.barcodeName.textContent = "Barcode service unavailable.";
-            } finally {
-                ui.loader.classList.add('hidden');
-            }
+        function saveHiddenState() {
+            localStorage.setItem(STORAGE_KEY_HIDDEN, JSON.stringify(Array.from(hiddenProductIds)));
+            updateHiddenButtonVisibility();
         }
 
+        function hideItem(id) {
+            hiddenProductIds.add(id);
+            saveHiddenState();
+            performSearch(ui.search.value);
+            // Don't auto-refresh hidden list here unless user is in that view
+            if (!ui.hiddenView.classList.contains('view-hidden')) renderHiddenItems();
+        }
+
+        function unhideItem(id) {
+            hiddenProductIds.delete(id);
+            saveHiddenState();
+            renderHiddenItems();
+            performSearch(ui.search.value);
+        }
+
+        ui.showHiddenBtn.onclick = () => {
+            ui.mainView.classList.add('view-hidden');
+            ui.hiddenView.classList.remove('view-hidden');
+            ui.hiddenSearch.value = "";
+            renderHiddenItems();
+        };
+
+        ui.backToSearch.onclick = () => {
+            ui.hiddenView.classList.add('view-hidden');
+            ui.mainView.classList.remove('view-hidden');
+        };
+
+        ui.clearAllHidden.onclick = () => {
+            hiddenProductIds.clear();
+            saveHiddenState();
+            renderHiddenItems();
+            performSearch(ui.search.value);
+        };
+
+        function renderHiddenItems() {
+            const query = ui.hiddenSearch.value.toLowerCase().trim();
+            const tokens = query.split(/\s+/).filter(t => t.length > 0);
+
+            const filteredHidden = allData.filter(item => {
+                if (!hiddenProductIds.has(item.id)) return false;
+                
+                // Use activeHiddenFilters here
+                const isStoreAllowed = Array.from(activeHiddenFilters).some(filterId => item.sk.includes(filterId));
+                if (!isStoreAllowed) return false;
+
+                if (tokens.length > 0) {
+                    return tokens.every(token => item.sb.includes(token));
+                }
+                return true;
+            });
+
+            ui.hiddenEmpty.classList.toggle('hidden', filteredHidden.length > 0);
+            
+            if (filteredHidden.length === 0) {
+                ui.hiddenResults.innerHTML = '';
+                ui.hiddenEmpty.textContent = hiddenProductIds.size === 0 ? "No hidden items yet." : "No matches in hidden items.";
+                return;
+            }
+
+            ui.hiddenResults.innerHTML = filteredHidden.map(item => {
+                let store = STORE_MAP[item.sk] || { name: item.sk.toUpperCase(), bg: '#666', text: '#fff' };
+                return `
+                <tr class="row-glass">
+                    <td>
+                        <div class="mb-1">
+                            <span class="store-badge" style="background-color: ${store.bg}; color: ${store.text};">
+                                ${store.name}
+                            </span>
+                        </div>
+                        <div class="font-bold text-gray-900 leading-tight">${item.n}</div>
+                        <div class="text-[10px] text-gray-500">${item.q || ''}</div>
+                        <button onclick="unhideItem('${item.id}')" class="mt-2 text-[10px] text-blue-600 font-bold uppercase tracking-wider">
+                            Unhide
+                        </button>
+                    </td>
+                    <td class="align-bottom">
+                        <div class="text-sm font-bold text-gray-500">€${item.p.toFixed(2)}</div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        function performSearch(query) {
+            query = query.toLowerCase().trim();
+            if (query.length < 2) {
+                ui.results.innerHTML = '';
+                ui.count.textContent = 'Keep typing...';
+                ui.empty.classList.remove('hidden');
+                ui.scrollLoader.classList.add('hidden');
+                currentMatches = [];
+                displayedCount = 0;
+                return;
+            }
+
+            const tokens = query.split(/\s+/).filter(t => t.length > 0);
+
+            currentMatches = allData.filter(item => {
+                // Use activeMainFilters here
+                const isStoreAllowed = Array.from(activeMainFilters).some(filterId => item.sk.includes(filterId));
+                if (!isStoreAllowed) return false;
+                if (hiddenProductIds.has(item.id)) return false;
+
+                return tokens.every(token => {
+                    const altToken = token.includes('.') ? token.replace('.', ',') : 
+                                     token.includes(',') ? token.replace(',', '.') : token;
+                    return item.sb.includes(token) || item.sb.includes(altToken);
+                });
+            });
+
+            currentMatches.sort((a, b) => {
+                const storeA = STORE_MAP[a.sk] || { priority: 99 };
+                const storeB = STORE_MAP[b.sk] || { priority: 99 };
+                if (storeA.priority !== storeB.priority) return storeA.priority - storeB.priority;
+                return a.p - b.p;
+            });
+
+            ui.results.innerHTML = '';
+            displayedCount = 0;
+            loadMoreResults();
+            ui.count.textContent = `Found ${currentMatches.length} smart matches.`;
+        }
+
+        function loadMoreResults() {
+            if (displayedCount >= currentMatches.length) return;
+
+            ui.scrollLoader.classList.remove('hidden');
+            const nextBatch = currentMatches.slice(displayedCount, displayedCount + PAGE_SIZE);
+            
+            const rows = nextBatch.map(item => {
+                let store = STORE_MAP[item.sk] || { name: item.sk.toUpperCase(), bg: '#666', text: '#fff' };
+
+                return `
+                <tr class="row-glass group" id="item-${item.id}">
+                    <td>
+                        <div class="mb-1">
+                            <span class="store-badge" style="background-color: ${store.bg}; color: ${store.text};">
+                                ${store.name}
+                            </span>
+                        </div>
+                        <div class="font-bold text-gray-900 leading-tight pr-4">
+                            ${item.u ? `<a href="${item.u}" target="_blank" class="hover:underline">${item.n}</a>` : item.n}
+                        </div>
+                        <div class="flex items-center gap-2 mt-1">
+                            ${item.b ? `<span class="text-[9px] text-gray-400 uppercase font-black">${item.b}</span>` : ''}
+                            ${item.q ? `<span class="text-[10px] text-blue-600 font-medium">${item.q}</span>` : ''}
+                        </div>
+                    </td>
+                    <td class="align-top">
+                        <div class="flex flex-col items-end">
+                             <button onclick="hideItem('${item.id}')" class="hide-btn text-[10px] font-bold text-gray-500 hover:text-blue-600 uppercase bg-gray-100 px-2 py-0.5 rounded border border-gray-200 transition" title="Hide this item">
+                                hide
+                            </button>
+                            <br/>
+                            <div class="text-lg font-black text-gray-900 mt-auto">€${item.p.toFixed(2)}</div>
+                        </div>
+                    </td>
+                </tr>`;
+            }).join('');
+
+            ui.results.insertAdjacentHTML('beforeend', rows);
+            displayedCount += nextBatch.length;
+            ui.empty.classList.add('hidden');
+            if (displayedCount >= currentMatches.length) ui.scrollLoader.classList.add('hidden');
+        }
+
+        // Scanner Handlers
         ui.toggleBtn.onclick = () => {
             if (scannerIsRunning) {
                 Quagga.stop();
@@ -363,27 +691,42 @@
             ui.toggleBtn.classList.replace('bg-blue-500', 'bg-red-500');
 
             Quagga.init({
-                inputStream: {
-                    name: "Live",
-                    type: "LiveStream",
-                    target: document.querySelector('#interactive'),
-                    constraints: { facingMode: "environment" }
-                },
+                inputStream: { name: "Live", type: "LiveStream", target: document.querySelector('#interactive'), constraints: { facingMode: "environment" } },
                 decoder: { readers: ["ean_reader", "upc_reader"] }
-            }, (err) => {
-                if (err) { log("Camera Error: " + err, 'error'); return; }
-                Quagga.start();
-            });
+            }, () => Quagga.start());
 
             Quagga.onDetected((data) => {
-                const code = data.codeResult.code;
                 Quagga.stop();
                 ui.scannerCont.classList.add('hidden');
                 ui.toggleBtn.textContent = "SCAN BARCODE";
                 ui.toggleBtn.classList.replace('bg-red-500', 'bg-blue-500');
                 scannerIsRunning = false;
-                fetchProductNameByBarcode(code);
+                fetchProductNameByBarcode(data.codeResult.code);
             });
+        }
+
+        async function fetchProductNameByBarcode(barcode) {
+            ui.loader.classList.remove('hidden');
+            ui.barcodeInfo.classList.remove('hidden');
+            ui.barcodeName.textContent = "Querying Open Food Facts...";
+
+            try {
+                const res = await fetch(`${OFF_API_URL}${barcode}.json`);
+                const json = await res.json();
+                if (json.status === 1) {
+                    const p = json.product;
+                    const fullString = `${p.brands || ""} ${p.product_name || p.generic_name || ""} ${p.quantity || ""}`.trim();
+                    ui.barcodeName.textContent = fullString;
+                    ui.search.value = fullString;
+                    performSearch(fullString);
+                } else {
+                    ui.barcodeName.textContent = "Barcode not in database.";
+                }
+            } catch (err) {
+                ui.barcodeName.textContent = "Service unavailable.";
+            } finally {
+                ui.loader.classList.add('hidden');
+            }
         }
 
         ui.search.addEventListener('input', (e) => {
@@ -395,78 +738,10 @@
             ui.barcodeInfo.classList.add('hidden');
             performSearch(val);
         });
-
-        function performSearch(query) {
-            query = query.toLowerCase().trim();
-            if (query.length < 2) {
-                ui.results.innerHTML = '';
-                ui.count.textContent = 'Keep typing...';
-                ui.empty.classList.remove('hidden');
-                return;
-            }
-
-            const tokens = query.split(/\s+/).filter(t => t.length > 0);
-
-            const matches = allData.filter(item => {
-                return tokens.every(token => {
-                    const altToken = token.includes('.') ? token.replace('.', ',') : 
-                                     token.includes(',') ? token.replace(',', '.') : 
-                                     token;
-                    return item.sb.includes(token) || item.sb.includes(altToken);
-                });
-            });
-
-            matches.sort((a, b) => {
-                const storeA = STORE_MAP[a.sk] || { priority: 99 };
-                const storeB = STORE_MAP[b.sk] || { priority: 99 };
-                
-                if (storeA.priority !== storeB.priority) {
-                    return storeA.priority - storeB.priority;
-                }
-                
-                const aExact = a.n.toLowerCase() === query;
-                const bExact = b.n.toLowerCase() === query;
-                if (aExact && !bExact) return -1;
-                if (!aExact && bExact) return 1;
-
-                return a.p - b.p;
-            });
-
-            renderResults(matches.slice(0, 60));
-            ui.count.textContent = `Found ${matches.length} smart matches.`;
-        }
-
-        function renderResults(items) {
-            if (items.length === 0) {
-                ui.results.innerHTML = '';
-                ui.empty.classList.remove('hidden');
-                ui.empty.textContent = "No products found for these keywords.";
-                return;
-            }
-
-            ui.empty.classList.add('hidden');
-            ui.results.innerHTML = items.map(item => {
-                const store = STORE_MAP[item.sk] || { name: `Store ${item.sk}`, bg: '#666', text: '#fff' };
-                return `
-                <tr class="row-glass">
-                    <td>
-                        <div class="mb-1">
-                            <span class="store-badge" style="background-color: ${store.bg}; color: ${store.text};">
-                                ${store.name}
-                            </span>
-                        </div>
-                        <div class="font-bold text-gray-900 leading-tight">${item.n}</div>
-                        <div class="flex items-center gap-2 mt-1">
-                            ${item.b ? `<span class="text-[9px] text-gray-400 uppercase font-black">${item.b}</span>` : ''}
-                            ${item.q ? `<span class="text-[10px] text-blue-600 font-medium">${item.q}</span>` : ''}
-                        </div>
-                    </td>
-                    <td>
-                        <div class="text-lg font-black text-gray-900">€${item.p.toFixed(2)}</div>
-                    </td>
-                </tr>`;
-            }).join('');
-        }
+        
+        ui.hiddenSearch.addEventListener('input', () => {
+            renderHiddenItems();
+        });
 
         window.onload = init;
     </script>
