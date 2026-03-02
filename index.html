@@ -135,7 +135,7 @@
 
             <div class="relative">
                 <input type="text" id="search-input" 
-                    placeholder="e.g. 'coca cola 1.5 l'..." 
+                    placeholder="e.g. 'coca cola 1.5 l' or scan..." 
                     class="w-full px-5 py-4 bg-white/50 border-none rounded-2xl search-input text-lg outline-none"
                     disabled>
                 <div id="search-loader" class="hidden absolute right-4 top-4">
@@ -280,7 +280,7 @@
             ui.search.disabled = false;
             ui.status.classList.replace('bg-red-500', 'bg-green-500');
             ui.count.textContent = `${allData.length.toLocaleString()} products found.`;
-            ui.empty.textContent = "Search by name or by Barcode... (You can also type the barcode manually)";
+            ui.empty.textContent = "Type or Scan to compare prices.";
         }
 
         async function fetchProductNameByBarcode(barcode) {
@@ -307,14 +307,28 @@
                     const rawBrand = (p.brands || "").split(',')[0].trim();
                     const rawQuantity = p.quantity || "";
 
-                    // 2. Format Quantity: Add space between number and unit (e.g., 165g -> 165 g)
-                    let cleanQuantity = rawQuantity.replace(/(\d+)([a-zA-Z]+)/, '$1 $2').trim();
+                    // 2. Format Quantity: Insert spaces between numbers, operators (x, *), and units
+                    // e.g., "6x1.5l" -> "6 x 1.5 l"
+                    let cleanQuantity = rawQuantity
+                        .replace(/(\d+)([a-zA-Z]+)/g, '$1 $2') // number -> unit
+                        .replace(/([a-zA-Z]+)(\d+)/g, '$1 $2') // unit -> number
+                        .replace(/(\d+)([xX*])(\d+)/g, '$1 $2 $3') // number -> x -> number
+                        .replace(/\s+/g, ' ')
+                        .trim();
+                    
                     if (isInvalid(cleanQuantity)) cleanQuantity = "";
 
-                    // 3. Build string and Remove Duplicate Words
+                    // 3. Build string and Remove Duplicate Words (Case Insensitive)
                     const fullString = `${isInvalid(rawBrand) ? "" : rawBrand} ${rawProdName} ${cleanQuantity}`.trim();
-                    const uniqueWords = [...new Set(fullString.split(/\s+/))];
-                    const finalQuery = uniqueWords.filter(w => !isInvalid(w)).join(' ');
+                    const words = fullString.split(/\s+/).filter(w => !isInvalid(w));
+                    
+                    const seen = new Set();
+                    const finalQuery = words.filter(word => {
+                        const low = word.toLowerCase();
+                        if (seen.has(low)) return false;
+                        seen.add(low);
+                        return true;
+                    }).join(' ');
                     
                     log(`API SEARCH QUERY: ${finalQuery}`, 'api');
                     ui.barcodeName.textContent = finalQuery;
