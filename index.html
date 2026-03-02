@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PrijsCheck - Barcode & Price Comparison</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- QuaggaJS for Barcode Scanning -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/quagga/0.12.1/quagga.min.js"></script>
+    <style>
+        :root {
+            --glass-bg: rgba(255, 255, 255, 0.7);
+            --glass-border: rgba(255, 255, 255, 0.4);
+            --apple-blue: #007AFF;
+        }
+
+        body {
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #1d1d1f;
+        }
+
+        .liquid-glass {
+            background: var(--glass-bg);
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.07);
+        }
+
+        .header-glass {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            position: sticky;
+            top: 0;
+            z-index: 50;
+        }
+
+        .search-input {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .loader {
+            border-top-color: var(--apple-blue);
+            animation: spinner 0.8s linear infinite;
+        }
+
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .store-badge {
+            padding: 2px 8px;
+            border-radius: 9999px;
+            font-size: 9px;
+            font-weight: 800;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+            display: inline-block;
+        }
+
+        /* Scanner Overlay */
+        #interactive.viewport {
+            width: 100%;
+            height: 250px;
+            border-radius: 16px;
+            overflow: hidden;
+            position: relative;
+            background: #000;
+        }
+        #interactive.viewport canvas, #interactive.viewport video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Table Specifics */
+        .results-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0 8px;
+        }
+        .results-table th {
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #6b7280;
+            padding: 0 12px;
+            text-align: left;
+        }
+        .row-glass {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(8px);
+            border-radius: 12px;
+            transition: transform 0.2s;
+        }
+        .row-glass:active {
+            transform: scale(0.98);
+        }
+        .row-glass td {
+            padding: 12px;
+        }
+        .row-glass td:first-child { border-radius: 12px 0 0 12px; }
+        .row-glass td:last-child { border-radius: 0 12px 12px 0; text-align: right; }
+    </style>
+</head>
+<body class="pb-10">
+
+    <header class="header-glass px-6 py-4 mb-6">
+        <div class="max-w-md mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold tracking-tight text-gray-900">PrijsCheck</h1>
+            <div id="status-dot" class="w-3 h-3 rounded-full bg-red-500 shadow-sm"></div>
+        </div>
+    </header>
+
+    <main class="max-w-md mx-auto px-4 space-y-4">
+        
+        <!-- Search & Scanner UI -->
+        <div class="liquid-glass p-6 space-y-4">
+            <div class="flex justify-between items-center">
+                <p class="text-sm font-medium text-gray-500 uppercase tracking-wider">Search or Scan</p>
+                <button id="toggle-scanner" class="bg-blue-500 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg hover:bg-blue-600 transition">
+                    📸 OPEN SCANNER
+                </button>
+            </div>
+
+            <!-- Live Scanner View -->
+            <div id="scanner-container" class="hidden animate-in fade-in duration-300">
+                <div id="interactive" class="viewport"></div>
+                <p class="text-[10px] text-center text-gray-500 mt-2">Center the barcode in the view</p>
+            </div>
+
+            <div class="relative">
+                <input type="text" id="search-input" 
+                    placeholder="e.g. 'coca cola 1.5l' or scan..." 
+                    class="w-full px-5 py-4 bg-white/50 border-none rounded-2xl search-input text-lg outline-none"
+                    disabled>
+                <div id="search-loader" class="hidden absolute right-4 top-4">
+                    <div class="loader ease-linear rounded-full border-2 border-t-2 border-gray-200 h-6 w-6"></div>
+                </div>
+            </div>
+            
+            <div id="barcode-info" class="hidden p-3 bg-blue-50 rounded-xl border border-blue-100">
+                <p class="text-xs text-blue-600 font-bold uppercase mb-1">Detected via Barcode:</p>
+                <p id="barcode-product-name" class="text-sm font-semibold text-gray-800">Searching...</p>
+            </div>
+
+            <div id="results-count" class="text-xs text-gray-400 px-1 italic">Initializing...</div>
+        </div>
+
+        <!-- Results Table -->
+        <div id="results-wrapper">
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>Product & Store</th>
+                        <th>Price</th>
+                    </tr>
+                </thead>
+                <tbody id="results-container">
+                    <!-- Rows will be injected here -->
+                </tbody>
+            </table>
+            <div class="text-center py-10 text-gray-400 italic" id="empty-state">
+                Connecting to supermarket prices...
+            </div>
+        </div>
+
+        <!-- Debug Console -->
+        <div class="rounded-xl overflow-hidden border border-black/10 opacity-50">
+            <button onclick="document.getElementById('debug-console').classList.toggle('hidden')" class="w-full bg-gray-800 text-white text-[10px] py-1 px-4 text-left">
+                SYSTEM LOGS (DEBUG)
+            </button>
+            <div id="debug-console" class="p-3 hidden bg-black text-green-400 font-mono text-[10px] max-h-48 overflow-y-auto"></div>
+        </div>
+    </main>
+
+    <script>
+        const DATA_URL = 'https://raw.githubusercontent.com/supermarkt/checkjebon/refs/heads/main/data/supermarkets.json';
+        const OFF_API_URL = 'https://world.openfoodfacts.org/api/v0/product/';
+
+        const STORE_MAP = {
+            'ah': { name: 'Albert Heijn', bg: '#00adef', text: '#ffffff', priority: 1 },
+            '0': { name: 'Albert Heijn', bg: '#00adef', text: '#ffffff', priority: 1 },
+            '1': { name: 'Albert Heijn', bg: '#00adef', text: '#ffffff', priority: 1 },
+            'jumbo': { name: 'Jumbo', bg: '#eeb717', text: '#000000', priority: 1 },
+            '2': { name: 'Jumbo', bg: '#eeb717', text: '#000000', priority: 1 },
+            'plus': { name: 'Plus', bg: '#48ab2b', text: '#ffffff', priority: 2 },
+            '3': { name: 'Plus', bg: '#48ab2b', text: '#ffffff', priority: 2 },
+            'dirk': { name: 'Dirk', bg: '#e30613', text: '#ffffff', priority: 2 },
+            '4': { name: 'Dirk', bg: '#e30613', text: '#ffffff', priority: 2 },
+            'aldi': { name: 'Aldi', bg: '#002e6d', text: '#ffffff', priority: 2 },
+            '5': { name: 'Aldi', bg: '#002e6d', text: '#ffffff', priority: 2 },
+            'lidl': { name: 'Lidl', bg: '#0050aa', text: '#ffffff', priority: 2 },
+            '6': { name: 'Lidl', bg: '#0050aa', text: '#ffffff', priority: 2 },
+            'spar': { name: 'Spar', bg: '#007a33', text: '#ffffff', priority: 1 },
+            '7': { name: 'Spar', bg: '#007a33', text: '#ffffff', priority: 1 },
+            'coop': { name: 'Coop', bg: '#ee7b00', text: '#ffffff', priority: 2 },
+            '8': { name: 'Coop', bg: '#ee7b00', text: '#ffffff', priority: 2 },
+            'hoogvliet': { name: 'Hoogvliet', bg: '#005da8', text: '#ffffff', priority: 2 },
+            '9': { name: 'Hoogvliet', bg: '#005da8', text: '#ffffff', priority: 2 },
+            'picnic': { name: 'Picnic', bg: '#e30613', text: '#ffffff', priority: 1 },
+            '10': { name: 'Picnic', bg: '#e30613', text: '#ffffff', priority: 1 },
+            'dekamarkt': { name: 'Dekamarkt', bg: '#cf112d', text: '#ffffff', priority: 2 },
+            '11': { name: 'Dekamarkt', bg: '#cf112d', text: '#ffffff', priority: 2 },
+            'vomar': { name: 'Vomar', bg: '#e30613', text: '#ffffff', priority: 2 },
+            '12': { name: 'Vomar', bg: '#e30613', text: '#ffffff', priority: 2 }
+        };
+
+        let allData = [];
+        let scannerIsRunning = false;
+
+        const ui = {
+            search: document.getElementById('search-input'),
+            results: document.getElementById('results-container'),
+            count: document.getElementById('results-count'),
+            loader: document.getElementById('search-loader'),
+            status: document.getElementById('status-dot'),
+            debug: document.getElementById('debug-console'),
+            barcodeInfo: document.getElementById('barcode-info'),
+            barcodeName: document.getElementById('barcode-product-name'),
+            scannerCont: document.getElementById('scanner-container'),
+            toggleBtn: document.getElementById('toggle-scanner'),
+            empty: document.getElementById('empty-state')
+        };
+
+        function log(msg, type = 'info') {
+            const time = new Date().toLocaleTimeString().split(' ')[0];
+            const div = document.createElement('div');
+            div.textContent = `[${time}] ${msg}`;
+            if(type === 'error') div.style.color = 'red';
+            if(type === 'api') div.style.color = '#38bdf8';
+            ui.debug.appendChild(div);
+            ui.debug.scrollTop = ui.debug.scrollHeight;
+        }
+
+        async function init() {
+            log('Fetching supermarket data...');
+            try {
+                const res = await fetch(DATA_URL);
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                processData(data);
+            } catch (err) {
+                log('Price DB Load Failed: ' + err.message, 'error');
+                ui.count.textContent = "Error Loading Database";
+            }
+        }
+
+        function processData(data) {
+            log('Scanning nested JSON categories...');
+            const temp = [];
+            
+            function crawl(obj, storeKey) {
+                if (Array.isArray(obj)) {
+                    obj.forEach(p => {
+                        if (p.n || p.name) {
+                            const name = p.n || p.name;
+                            const brand = p.b || p.brand || "";
+                            const size = p.s || p.q || p.unit || p.size || "";
+                            const searchBlob = `${name} ${brand} ${size}`.toLowerCase();
+
+                            temp.push({
+                                n: name,
+                                p: parseFloat(p.p || p.price || 0),
+                                sk: storeKey.toString().toLowerCase(),
+                                u: p.u || p.url || "",
+                                b: brand,
+                                q: size,
+                                sb: searchBlob
+                            });
+                        }
+                    });
+                    return;
+                }
+                if (obj !== null && typeof obj === 'object') {
+                    for (const key in obj) {
+                        crawl(obj[key], storeKey);
+                    }
+                }
+            }
+
+            for (const key in data) {
+                crawl(data[key], key);
+            }
+
+            allData = temp;
+            ui.search.disabled = false;
+            ui.status.classList.replace('bg-red-500', 'bg-green-500');
+            ui.count.textContent = `${allData.length.toLocaleString()} products found.`;
+            ui.empty.textContent = "Type or Scan to compare prices.";
+        }
+
+        async function fetchProductNameByBarcode(barcode) {
+            log(`API REQUEST: ${barcode}`, 'api');
+            ui.loader.classList.remove('hidden');
+            ui.barcodeInfo.classList.remove('hidden');
+            ui.barcodeName.textContent = "Querying Open Food Facts...";
+
+            try {
+                const res = await fetch(`${OFF_API_URL}${barcode}.json`);
+                const json = await res.json();
+                
+                // LOG RAW RESPONSE FOR DEBUGGING
+                console.log("OFF API Response:", json);
+                log(`API RAW: ${JSON.stringify(json.product?.product_name || "No Name Found").substring(0, 50)}...`, 'api');
+
+                if (json.status === 1) {
+                    const p = json.product;
+                    
+                    // 1. Clean up "Unknown", "null", or missing values
+                    const isInvalid = (str) => !str || /^(unknown|null|undefined|none|n\/a)$/i.test(str.toString().trim());
+                    
+                    const rawProdName = isInvalid(p.product_name) ? (p.generic_name || "") : p.product_name;
+                    const rawBrand = (p.brands || "").split(',')[0].trim();
+                    const rawQuantity = p.quantity || "";
+
+                    // 2. Format Quantity: Add space between number and unit (e.g., 165g -> 165 g)
+                    let cleanQuantity = rawQuantity.replace(/(\d+)([a-zA-Z]+)/, '$1 $2').trim();
+                    if (isInvalid(cleanQuantity)) cleanQuantity = "";
+
+                    // 3. Build string and Remove Duplicate Words
+                    const fullString = `${isInvalid(rawBrand) ? "" : rawBrand} ${rawProdName} ${cleanQuantity}`.trim();
+                    const uniqueWords = [...new Set(fullString.split(/\s+/))];
+                    const finalQuery = uniqueWords.filter(w => !isInvalid(w)).join(' ');
+                    
+                    log(`API SEARCH QUERY: ${finalQuery}`, 'api');
+                    ui.barcodeName.textContent = finalQuery;
+                    ui.search.value = finalQuery;
+                    performSearch(finalQuery);
+                } else {
+                    ui.barcodeName.textContent = "Barcode not in global database.";
+                }
+            } catch (err) {
+                log(`API Error: ${err.message}`, 'error');
+                ui.barcodeName.textContent = "Barcode service unavailable.";
+            } finally {
+                ui.loader.classList.add('hidden');
+            }
+        }
+
+        ui.toggleBtn.onclick = () => {
+            if (scannerIsRunning) {
+                Quagga.stop();
+                ui.scannerCont.classList.add('hidden');
+                ui.toggleBtn.textContent = "📸 OPEN SCANNER";
+                ui.toggleBtn.classList.replace('bg-red-500', 'bg-blue-500');
+            } else {
+                startScanner();
+            }
+            scannerIsRunning = !scannerIsRunning;
+        };
+
+        function startScanner() {
+            ui.scannerCont.classList.remove('hidden');
+            ui.toggleBtn.textContent = "🛑 STOP SCANNER";
+            ui.toggleBtn.classList.replace('bg-blue-500', 'bg-red-500');
+
+            Quagga.init({
+                inputStream: {
+                    name: "Live",
+                    type: "LiveStream",
+                    target: document.querySelector('#interactive'),
+                    constraints: { facingMode: "environment" }
+                },
+                decoder: { readers: ["ean_reader", "upc_reader"] }
+            }, (err) => {
+                if (err) { log("Camera Error: " + err, 'error'); return; }
+                Quagga.start();
+            });
+
+            Quagga.onDetected((data) => {
+                const code = data.codeResult.code;
+                Quagga.stop();
+                ui.scannerCont.classList.add('hidden');
+                ui.toggleBtn.textContent = "📸 OPEN SCANNER";
+                ui.toggleBtn.classList.replace('bg-red-500', 'bg-blue-500');
+                scannerIsRunning = false;
+                fetchProductNameByBarcode(code);
+            });
+        }
+
+        ui.search.addEventListener('input', (e) => {
+            const val = e.target.value;
+            if (/^\d{8,14}$/.test(val)) {
+                fetchProductNameByBarcode(val);
+                return;
+            }
+            ui.barcodeInfo.classList.add('hidden');
+            performSearch(val);
+        });
+
+        function performSearch(query) {
+            query = query.toLowerCase().trim();
+            if (query.length < 2) {
+                ui.results.innerHTML = '';
+                ui.count.textContent = 'Keep typing...';
+                ui.empty.classList.remove('hidden');
+                return;
+            }
+
+            const tokens = query.split(/\s+/).filter(t => t.length > 0);
+
+            const matches = allData.filter(item => {
+                return tokens.every(token => {
+                    const altToken = token.includes('.') ? token.replace('.', ',') : 
+                                     token.includes(',') ? token.replace(',', '.') : 
+                                     token;
+                    return item.sb.includes(token) || item.sb.includes(altToken);
+                });
+            });
+
+            matches.sort((a, b) => {
+                const storeA = STORE_MAP[a.sk] || { priority: 99 };
+                const storeB = STORE_MAP[b.sk] || { priority: 99 };
+                
+                if (storeA.priority !== storeB.priority) {
+                    return storeA.priority - storeB.priority;
+                }
+                
+                const aExact = a.n.toLowerCase() === query;
+                const bExact = b.n.toLowerCase() === query;
+                if (aExact && !bExact) return -1;
+                if (!aExact && bExact) return 1;
+
+                return a.p - b.p;
+            });
+
+            renderResults(matches.slice(0, 60));
+            ui.count.textContent = `Found ${matches.length} smart matches.`;
+        }
+
+        function renderResults(items) {
+            if (items.length === 0) {
+                ui.results.innerHTML = '';
+                ui.empty.classList.remove('hidden');
+                ui.empty.textContent = "No products found for these keywords.";
+                return;
+            }
+
+            ui.empty.classList.add('hidden');
+            ui.results.innerHTML = items.map(item => {
+                const store = STORE_MAP[item.sk] || { name: `Store ${item.sk}`, bg: '#666', text: '#fff' };
+                return `
+                <tr class="row-glass">
+                    <td>
+                        <div class="mb-1">
+                            <span class="store-badge" style="background-color: ${store.bg}; color: ${store.text};">
+                                ${store.name}
+                            </span>
+                        </div>
+                        <div class="font-bold text-gray-900 leading-tight">${item.n}</div>
+                        <div class="flex items-center gap-2 mt-1">
+                            ${item.b ? `<span class="text-[9px] text-gray-400 uppercase font-black">${item.b}</span>` : ''}
+                            ${item.q ? `<span class="text-[10px] text-blue-600 font-medium">${item.q}</span>` : ''}
+                        </div>
+                    </td>
+                    <td>
+                        <div class="text-lg font-black text-gray-900">€${item.p.toFixed(2)}</div>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
